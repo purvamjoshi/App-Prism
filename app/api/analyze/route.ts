@@ -1,82 +1,112 @@
-import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import gplay from "google-play-scraper";
 import { NextResponse } from "next/server";
+import gplay from "google-play-scraper";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+// Initialize Gemini
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "AIzaSyBY5QSUMdrzxreqKlbbtKSdP7n8l6XZwwY");
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 export async function POST(req: Request) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const { appId } = await req.json();
+
+    if (!appId) {
+      return NextResponse.json({ error: "App ID is required" }, { status: 400 });
     }
 
-    try {
-        const { appId } = await req.json();
+    // Handle potential default export mismatch for google-play-scraper
+    const scraper = (gplay as any).default || gplay;
 
-        if (!appId) {
-            return NextResponse.json({ error: "App ID is required" }, { status: 400 });
-        }
+    // 1. Fetch Reviews (Limit 1500)
+    const reviews = await scraper.reviews({
+      appId: appId,
+      sort: scraper.sort.NEWEST,
+      num: 1500,
+    });
 
-        // 1. Scrape Reviews
-        // Note: google-play-scraper might throw if appId is invalid
-        const reviews = await gplay.reviews({
-            appId: appId,
-            sort: (gplay.sort as any).NEWEST,
-            num: 50,
-        });
+    if (!reviews.data || reviews.data.length === 0) {
+      return NextResponse.json({ error: "No reviews found" }, { status: 404 });
+    }
 
-        const reviewsText = reviews.data.map((r: any) =>
-            `Rating: ${r.score}/5\nDate: ${r.date}\nText: ${r.text}`
-        ).join("\n---\n");
+    // 2. Split Reviews by Week
+    const now = new Date();
+    const startOfThisWeek = new Date(now);
+    startOfThisWeek.setDate(now.getDate() - now.getDay()); // Last Sunday
+    startOfThisWeek.setHours(0, 0, 0, 0);
 
-        // 2. Analyze with Gemini
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const startOfLastWeek = new Date(startOfThisWeek);
+    startOfLastWeek.setDate(startOfLastWeek.getDate() - 7);
 
-        const prompt = `
-      Analyze these Google Play Store reviews for the app "${appId}".
+    const endOfLastWeek = new Date(startOfThisWeek);
+    endOfLastWeek.setMilliseconds(-1);
+
+    const thisWeekReviews = reviews.data.filter((r: any) => new Date(r.date) >= startOfThisWeek);
+    const lastWeekReviews = reviews.data.filter((r: any) => {
+      const d = new Date(r.date);
+      return d >= startOfLastWeek && d < startOfThisWeek;
+    });
+
+    const formatReviews = (reviews: any[]) =>
+      reviews.map((r: any) => `Date: ${r.date}, Rating: ${r.score}, Text: "${r.text}"`).join("\n");
+
+    const prompt = `
+      Analyze the reviews for the app "${appId}". I have split them into two periods: "This Week" and "Last Week".
+
+      Reviews (This Week):
+      ${formatReviews(thisWeekReviews)}
+
+      Reviews (Last Week):
+      ${formatReviews(lastWeekReviews)}
+
+      Task:
+      For EACH period ("this_week" and "last_week"), provide the following analysis:
+      1.  **Weekly Summary**: A concise paragraph (approx. 50 words) summarizing the overall sentiment and key events/issues.
+      2.  **Weekly Ratings**: Group ratings by date. Return an array of daily stats.
+      3.  **Themes**: Identify the top 5 themes. For each theme, provide the theme name and the percentage of positive vs. negative sentiment (must sum to 100%).
+      4.  **Quotes**: Select 3 most relevant user quotes. For each, include the text, rating, date, sentiment label ("Positive" or "Negative"), and a short content tag (max 3 words).
+      5.  **Action Items**: Suggest 3 actionable steps.
       
-      Reviews:
-      ${reviewsText}
-      
-      Output a JSON object with the following structure:
+      Return ONLY valid JSON in the following format (no markdown code blocks):
       {
-        "themes": ["Theme 1", "Theme 2", "Theme 3", "Theme 4", "Theme 5"],
-        "quotes": [
-          { "text": "quote text", "rating": 5, "time": "date string from review" }
-        ],
-        "action_items": ["Action 1", "Action 2", "Action 3"]
+        "this_week": {
+          "weekly_summary": "...",
+          "weekly_ratings": [{ "date": "...", "positive": 10, "negative": 2 }],
+          "themes": [{ "name": "...", "sentiment": { "positive": 80, "negative": 20 } }],
+          "quotes": [{ "text": "...", "rating": 5, "time": "...", "sentiment": "Positive", "tag": "..." }],
+          "action_items": ["..."]
+        },
+        "last_week": {
+          // Same structure as above
+        }
       }
-      
-      - "themes": Top 5 recurring themes/topics.
-      - "quotes": 3-5 representative quotes. Include the star rating and date.
-      - "action_items": 3 specific, actionable recommendations for the product team.
-      
-      Return ONLY valid JSON. Do not use markdown code blocks.
     `;
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
+    // 3. Call Gemini
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
 
-        // Clean up markdown if present
-        const cleanJson = text.replace(/```json/g, "").replace(/```/g, "").trim();
-        const analysis = JSON.parse(cleanJson);
+    // Clean up JSON string if needed (remove markdown)
+    const cleanedText = text.replace(/```json/g, "").replace(/```/g, "").trim();
+    const analysis = JSON.parse(cleanedText);
 
-        // 3. Save History
-        // Check if entry exists for this user/app combo to avoid duplicates or just create new entry?
-        // User asked for "history", so maybe a log is better.
-        await prisma.searchHistory.create({
-            data: {
-                appId,
-                userId: session.user.id,
-            },
-        });
+    // Sort weekly_ratings by date ascending to ensure chronological order
+    const sortByDate = (a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime();
 
-        return NextResponse.json(analysis);
-
-    } catch (error) {
-        console.error("Analysis error:", error);
-        return NextResponse.json({ error: "Failed to analyze reviews. Check App ID or try again." }, { status: 500 });
+    if (analysis.this_week?.weekly_ratings) {
+      analysis.this_week.weekly_ratings.sort(sortByDate);
     }
+    if (analysis.last_week?.weekly_ratings) {
+      analysis.last_week.weekly_ratings.sort(sortByDate);
+    }
+
+    return NextResponse.json(analysis);
+
+  } catch (error: any) {
+    console.error("Analysis failed:", error);
+    return NextResponse.json(
+      { error: "Failed to analyze reviews", details: error.message },
+      { status: 500 }
+    );
+  }
 }
