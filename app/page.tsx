@@ -25,7 +25,9 @@ interface HistoryItem {
   timestamp: string;
 }
 
-export default function Home() {
+import { Suspense } from "react";
+
+function HomeContent() {
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
   const [appId, setAppId] = useState("");
@@ -482,5 +484,17 @@ export default function Home() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <Loader2 className="w-8 h-8 animate-spin text-[var(--color-brand)]" />
+      </div>
+    }>
+      <HomeContent />
+    </Suspense>
   );
 }
