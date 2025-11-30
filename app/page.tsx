@@ -16,8 +16,8 @@ interface AnalysisData {
 }
 
 interface AnalysisResult {
-  this_week: AnalysisData;
-  last_week: AnalysisData;
+  last_7_days: AnalysisData;
+  last_15_days: AnalysisData;
 }
 
 interface HistoryItem {
@@ -32,7 +32,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
-  const [selectedWeek, setSelectedWeek] = useState<'this_week' | 'last_week'>('this_week');
+  const [selectedPeriod, setSelectedPeriod] = useState<'last_7_days' | 'last_15_days'>('last_7_days');
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [emailSending, setEmailSending] = useState(false);
   const [error, setError] = useState("");
@@ -123,10 +123,35 @@ export default function Home() {
 
       setAnalysis(data);
       fetchHistory(); // Refresh history
+
+      // Auto-trigger email if session exists
+      if (session?.user?.email) {
+        // We need to pass the data we just got, not the state 'analysis' which might not be updated yet due to closure
+        triggerEmail(data, targetAppId);
+      }
+
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const triggerEmail = async (analysisData: AnalysisResult, currentAppId: string) => {
+    setEmailSending(true);
+    try {
+      const res = await fetch("/api/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ analysis: analysisData, appId: extractAppId(currentAppId) }),
+      });
+      if (!res.ok) throw new Error("Failed to send email");
+      // Optional: Use a toast here instead of alert for better UX, but alert is fine for now as per request
+      // console.log("Email sent successfully");
+    } catch (err) {
+      console.error("Failed to auto-send email", err);
+    } finally {
+      setEmailSending(false);
     }
   };
 
@@ -159,7 +184,7 @@ export default function Home() {
   // Removed early return for !session to allow guest access
 
 
-  const currentData = analysis ? analysis[selectedWeek] : null;
+  const currentData = analysis ? analysis[selectedPeriod] : null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -251,17 +276,17 @@ export default function Home() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Analysis Report</h2>
-                <p className="text-gray-500">Weekly insights for {appId}</p>
+                <p className="text-gray-500">Insights for {appId}</p>
               </div>
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <select
-                    value={selectedWeek}
-                    onChange={(e) => setSelectedWeek(e.target.value as 'this_week' | 'last_week')}
+                    value={selectedPeriod}
+                    onChange={(e) => setSelectedPeriod(e.target.value as 'last_7_days' | 'last_15_days')}
                     className="appearance-none pl-4 pr-10 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent cursor-pointer"
                   >
-                    <option value="this_week">This Week</option>
-                    <option value="last_week">Last Week</option>
+                    <option value="last_7_days">Last 7 Days</option>
+                    <option value="last_15_days">Last 15 Days</option>
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
                     <svg className="h-4 w-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
@@ -279,24 +304,24 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Weekly Summary */}
+            {/* Summary */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Weekly Summary</h3>
-              <p className="text-gray-700 leading-relaxed">{currentData.weekly_summary}</p>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Summary</h3>
+              <p className="text-gray-700 leading-relaxed">{currentData.weekly_summary || (currentData as any).summary}</p>
             </div>
 
-            {/* Weekly Ratings Graph */}
+            {/* Ratings Graph */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-[var(--color-brand)]" />
-                  Weekly Ratings Trend
+                  Ratings Trend
                 </h3>
               </div>
               <div className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart
-                    data={currentData.weekly_ratings}
+                    data={currentData.weekly_ratings || (currentData as any).daily_ratings}
                     margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                   >
                     <defs>
@@ -315,7 +340,10 @@ export default function Home() {
                       axisLine={false}
                       tickLine={false}
                       tick={{ fill: '#9ca3af' }}
-                      tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { weekday: 'short' })}
+                      tickFormatter={(value) => {
+                        const date = new Date(value);
+                        return `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                      }}
                     />
                     <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af' }} />
                     <Tooltip
