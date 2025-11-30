@@ -1,7 +1,7 @@
 "use client";
 
 import { signIn, signOut, useSession } from "next-auth/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Search, Send, Star, History, LogOut, Loader2, X, TrendingUp, Users, Lightbulb, BarChart3 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -24,9 +24,22 @@ interface HistoryItem {
     timestamp: string;
 }
 
+function SearchHandler({ setAppId }: { setAppId: (id: string) => void }) {
+    const searchParams = useSearchParams();
+
+    useEffect(() => {
+        const urlAppId = searchParams.get("appId");
+        if (urlAppId) {
+            setAppId(urlAppId);
+        }
+    }, [searchParams, setAppId]);
+
+    return null;
+}
+
 export default function HomeClient() {
     const { data: session, status } = useSession();
-    const searchParams = useSearchParams();
+    // Removed direct useSearchParams call from here
     const [appId, setAppId] = useState("");
     const [loading, setLoading] = useState(false);
     const [showLoginModal, setShowLoginModal] = useState(false);
@@ -35,13 +48,6 @@ export default function HomeClient() {
     const [history, setHistory] = useState<HistoryItem[]>([]);
     const [emailSending, setEmailSending] = useState(false);
     const [error, setError] = useState("");
-
-    useEffect(() => {
-        const urlAppId = searchParams.get("appId");
-        if (urlAppId) {
-            setAppId(urlAppId);
-        }
-    }, [searchParams]);
 
     useEffect(() => {
         if (session?.user) {
@@ -161,7 +167,7 @@ export default function HomeClient() {
             const res = await fetch("/api/email", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ analysis, appId: extractAppId(appId) }),
+                body: JSON.stringify({ analysis: analysis, appId: extractAppId(appId) }),
             });
             if (!res.ok) throw new Error("Failed to send email");
             alert("Weekly Pulse sent to your inbox!");
@@ -187,6 +193,10 @@ export default function HomeClient() {
 
     return (
         <div className="min-h-screen bg-gray-50">
+            <Suspense fallback={null}>
+                <SearchHandler setAppId={setAppId} />
+            </Suspense>
+
             {/* Header */}
             <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
                 <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
