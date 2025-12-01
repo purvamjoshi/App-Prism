@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# App-Prism 🚀
 
-## Getting Started
+**App-Prism** is a powerful **Review Intelligence Platform** designed to help developers and product managers extract actionable insights from Google Play Store reviews.
 
-First, run the development server:
+![App Prism Screenshot](./app-prism-ss.png)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## ✨ Features
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+-   **🔍 App Analysis**: Enter any Google Play App ID (e.g., `com.nextbillion.groww`) to fetch and analyze reviews.
+-   **🤖 AI-Powered Insights**: Uses **Google Gemini 2.0 Flash** to generate a "Weekly Pulse" report, identifying:
+    -   Top 5 Themes (with sentiment breakdown).
+    -   Key User Quotes.
+    -   Actionable Next Steps.
+-   **📊 Visual Data**: Interactive charts showing daily rating trends and sentiment distribution.
+-   **🔐 Secure Authentication**: Google Login integration via **NextAuth.js**.
+-   **💾 History**: Persists search history and analysis results using **Supabase** (PostgreSQL).
+-   **📧 Email Reports**: Send analysis drafts directly to your inbox using **Loops.so**.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🛠️ Tech Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+-   **Framework**: [Next.js 15](https://nextjs.org/) (App Router)
+-   **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+-   **Database**: [Supabase](https://supabase.com/) (PostgreSQL) & [Prisma ORM](https://www.prisma.io/)
+-   **AI Model**: [Google Gemini API](https://ai.google.dev/) (`gemini-2.0-flash-lite-preview-02-05`)
+-   **Auth**: [Auth.js](https://authjs.dev/) (Google Provider)
+-   **Scraper**: `google-play-scraper`
 
-## Learn More
+## 🚀 Getting Started
 
-To learn more about Next.js, take a look at the following resources:
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/yourusername/app-prism.git
+    cd app-prism
+    ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+2.  **Install dependencies**:
+    ```bash
+    npm install
+    ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+3.  **Set up Environment Variables**:
+    Create a `.env` file with the following:
+    ```env
+    DATABASE_URL="postgresql://..."
+    AUTH_SECRET="..."
+    AUTH_GOOGLE_ID="..."
+    AUTH_GOOGLE_SECRET="..."
+    GEMINI_API_KEY="..."
+    LOOPS_API_KEY="..."
+    ```
 
-## Deploy on Vercel
+4.  **Run the development server**:
+    ```bash
+    npm run dev
+    ```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+5.  Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 📄 License
+
+This project is licensed under the MIT License.

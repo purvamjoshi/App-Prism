@@ -5,7 +5,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 // Initialize Gemini
 // CRITICAL: Do not hardcode API keys here. Use environment variables.
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite-preview-02-05" });
 
 export async function POST(req: Request) {
   try {
@@ -20,13 +20,20 @@ export async function POST(req: Request) {
     }
 
     // Handle potential default export mismatch for google-play-scraper
+    // In some environments, the import might be the module namespace or the default export
     const scraper = (gplay as any).default || gplay;
 
-    // 1. Fetch Reviews (Limit 1500)
+    console.log("Scraper type:", typeof scraper);
+    console.log("Scraper sort available:", !!scraper.sort);
+
+    // 1. Fetch Reviews
+    // Use hardcoded integer 2 for NEWEST if sort enum is missing to be safe
+    const sortOption = scraper.sort ? scraper.sort.NEWEST : 2;
+
     const reviews = await scraper.reviews({
       appId: appId,
-      sort: scraper.sort.NEWEST,
-      num: 1500,
+      sort: sortOption,
+      num: 400, // Reduced from 1500 to improve reliability and speed
     });
 
     if (!reviews.data || reviews.data.length === 0) {
