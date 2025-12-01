@@ -1,9 +1,9 @@
 "use client";
 
 import { signIn, signOut, useSession } from "next-auth/react";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { Search, Send, Star, History, LogOut, Loader2, X, TrendingUp, Users, Lightbulb, BarChart3 } from "lucide-react";
+import { Search, Send, Star, History, LogOut, Loader2, X, TrendingUp, Users, Lightbulb, BarChart3, Sparkles } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface AnalysisData {
@@ -24,24 +24,30 @@ interface HistoryItem {
     timestamp: string;
 }
 
-function SearchHandler({ setAppId }: { setAppId: (id: string) => void }) {
+function SearchHandler({ setAppId, handleAutoAnalyze }: { setAppId: (id: string) => void, handleAutoAnalyze: (id: string) => void }) {
     const searchParams = useSearchParams();
+    const hasTriggered = useRef(false);
 
     useEffect(() => {
         const urlAppId = searchParams.get("appId");
         if (urlAppId) {
             setAppId(urlAppId);
+            // Only auto-trigger once per page load/mount
+            if (!hasTriggered.current) {
+                hasTriggered.current = true;
+                handleAutoAnalyze(urlAppId);
+            }
         }
-    }, [searchParams, setAppId]);
+    }, [searchParams, setAppId, handleAutoAnalyze]);
 
     return null;
 }
 
 export default function HomeClient() {
     const { data: session, status } = useSession();
-    // Removed direct useSearchParams call from here
     const [appId, setAppId] = useState("");
     const [loading, setLoading] = useState(false);
+    const [loadingMessage, setLoadingMessage] = useState("");
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
     const [selectedPeriod, setSelectedPeriod] = useState<'last_7_days' | 'last_15_days'>('last_7_days');
@@ -49,11 +55,34 @@ export default function HomeClient() {
     const [emailSending, setEmailSending] = useState(false);
     const [error, setError] = useState("");
 
+    // Loading messages sequence
+    const loadingMessages = [
+        "Hang on! Scanning all the reviews for you...",
+        "Gathering insights...",
+        "Generating chart of last 15 days...",
+        "Identifying top themes...",
+        "Finalizing your report..."
+    ];
+
     useEffect(() => {
         if (session?.user) {
             fetchHistory();
         }
     }, [session]);
+
+    // Effect to cycle through loading messages
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+        if (loading) {
+            let msgIndex = 0;
+            setLoadingMessage(loadingMessages[0]);
+            interval = setInterval(() => {
+                msgIndex = (msgIndex + 1) % loadingMessages.length;
+                setLoadingMessage(loadingMessages[msgIndex]);
+            }, 2500);
+        }
+        return () => clearInterval(interval);
+    }, [loading]);
 
     const fetchHistory = async () => {
         try {
@@ -79,40 +108,47 @@ export default function HomeClient() {
         return input;
     };
 
-    const handleAnalyze = async (e?: React.FormEvent) => {
+    const handleAnalyze = async (e?: React.FormEvent, overrideAppId?: string) => {
         e?.preventDefault();
 
-        if (!appId) return;
+        const currentInput = overrideAppId || appId;
+        if (!currentInput) return;
 
         // Extract App ID if a full URL is pasted
-        let targetAppId = appId;
-        if (appId.includes("play.google.com")) {
+        let targetAppId = currentInput;
+        if (currentInput.includes("play.google.com")) {
             try {
-                const url = new URL(appId);
+                const url = new URL(currentInput);
                 const idParam = url.searchParams.get("id");
                 if (idParam) {
                     targetAppId = idParam;
                 }
             } catch (e) {
-                // If URL parsing fails, assume it's just the ID
                 console.warn("Failed to parse URL, using input as ID");
             }
         }
 
-        // Update appId state if it was a URL and we extracted the ID
+        // Update appId state if needed
         if (targetAppId !== appId) {
             setAppId(targetAppId);
         }
 
+        // UX: Start "fake" loading immediately to engage user
+        setLoading(true);
+        setError("");
+        setAnalysis(null);
+
+        // If not logged in, show fake progress then login modal
         if (!session) {
-            setShowLoginModal(true);
+            // Wait a bit to show the "Scanning" message
+            setTimeout(() => {
+                setLoading(false);
+                setShowLoginModal(true);
+            }, 2000);
             return;
         }
 
-        setLoading(true);
-        setError(""); // Changed from null to "" for consistency with initial state
-        setAnalysis(null);
-
+        // If logged in, proceed with actual analysis
         try {
             const res = await fetch("/api/analyze", {
                 method: "POST",
@@ -127,11 +163,9 @@ export default function HomeClient() {
             }
 
             setAnalysis(data);
-            fetchHistory(); // Refresh history
+            fetchHistory();
 
-            // Auto-trigger email if session exists
             if (session?.user?.email) {
-                // We need to pass the data we just got, not the state 'analysis' which might not be updated yet due to closure
                 triggerEmail(data, targetAppId);
             }
 
@@ -139,6 +173,13 @@ export default function HomeClient() {
             setError(err.message);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Wrapper for auto-analyze to be passed to SearchHandler
+    const handleAutoAnalyze = (id: string) => {
+        if (session) {
+            handleAnalyze(undefined, id);
         }
     };
 
@@ -151,8 +192,6 @@ export default function HomeClient() {
                 body: JSON.stringify({ analysis: analysisData, appId: extractAppId(currentAppId) }),
             });
             if (!res.ok) throw new Error("Failed to send email");
-            // Optional: Use a toast here instead of alert for better UX, but alert is fine for now as per request
-            // console.log("Email sent successfully");
         } catch (err) {
             console.error("Failed to auto-send email", err);
         } finally {
@@ -186,15 +225,12 @@ export default function HomeClient() {
         );
     }
 
-    // Removed early return for !session to allow guest access
-
-
     const currentData = analysis ? analysis[selectedPeriod] : null;
 
     return (
         <div className="min-h-screen bg-gray-50">
             <Suspense fallback={null}>
-                <SearchHandler setAppId={setAppId} />
+                <SearchHandler setAppId={setAppId} handleAutoAnalyze={handleAutoAnalyze} />
             </Suspense>
 
             {/* Header */}
@@ -234,7 +270,7 @@ export default function HomeClient() {
             <main className="max-w-5xl mx-auto px-4 py-8 space-y-8">
                 {/* Search Section */}
                 <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                    <form onSubmit={handleAnalyze} className="flex gap-4">
+                    <form onSubmit={(e) => handleAnalyze(e)} className="flex gap-4">
                         <input
                             type="text"
                             placeholder="Enter Google Play App ID (e.g., com.nextbillion.groww)"
@@ -259,10 +295,10 @@ export default function HomeClient() {
                             <span className="text-sm text-gray-500 flex-shrink-0">Recent:</span>
                             {history.map((item) => (
                                 <button
-                                    key={item.timestamp} // timestamp as key might not be unique enough but ok for now
+                                    key={item.timestamp}
                                     onClick={() => {
                                         setAppId(item.appId);
-                                        // Optional: auto-trigger analyze
+                                        handleAnalyze(undefined, item.appId);
                                     }}
                                     className="px-3 py-1 bg-gray-100 text-gray-600 text-sm rounded-full hover:bg-gray-200 whitespace-nowrap transition-colors"
                                 >
@@ -279,8 +315,36 @@ export default function HomeClient() {
                     )}
                 </div>
 
+                {/* Loading Skeleton & Progress */}
+                {loading && (
+                    <div className="space-y-8 animate-in fade-in duration-500">
+                        <div className="flex items-center justify-center py-8">
+                            <div className="flex flex-col items-center gap-4">
+                                <div className="relative">
+                                    <div className="w-16 h-16 rounded-full border-4 border-[var(--color-brand)]/20 animate-spin border-t-[var(--color-brand)]"></div>
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <Sparkles className="w-6 h-6 text-[var(--color-brand)] animate-pulse" />
+                                    </div>
+                                </div>
+                                <p className="text-lg font-medium text-gray-700 animate-pulse">{loadingMessage}</p>
+                            </div>
+                        </div>
+
+                        {/* Skeleton UI */}
+                        <div className="opacity-50 pointer-events-none blur-[1px] transition-all duration-500">
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-32 mb-8"></div>
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-[300px] mb-8"></div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+                                {[1, 2, 3, 4, 5].map(i => (
+                                    <div key={i} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 h-24"></div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Dashboard */}
-                {currentData && (
+                {!loading && currentData && (
                     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="flex items-center justify-between">
                             <div>
