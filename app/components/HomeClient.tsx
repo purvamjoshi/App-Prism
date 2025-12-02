@@ -414,7 +414,7 @@ export default function HomeClient() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <h2 className="text-2xl font-bold text-gray-900">Analysis Report</h2>
-                                <p className="text-gray-500">Insights for {analysis.appTitle || appId}</p>
+                                <p className="text-gray-500">Insights for {analysis?.appTitle || appId}</p>
                             </div>
                             <div className="flex items-center gap-3">
                                 <div className="relative">
@@ -445,7 +445,7 @@ export default function HomeClient() {
                         {/* Summary */}
                         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                             <h3 className="text-lg font-bold text-gray-900 mb-2">Summary</h3>
-                            <p className="text-gray-700 leading-relaxed">{currentData.weekly_summary || (currentData as any).summary}</p>
+                            <p className="text-gray-700 leading-relaxed">{currentData.summary}</p>
                         </div>
 
                         {/* Ratings Graph */}
@@ -459,7 +459,7 @@ export default function HomeClient() {
                             <div className="h-[300px] w-full">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <AreaChart
-                                        data={currentData.weekly_ratings || (currentData as any).daily_ratings}
+                                        data={currentData.daily_ratings}
                                         margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                                     >
                                         <defs>
