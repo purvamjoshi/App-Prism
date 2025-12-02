@@ -11,6 +11,7 @@ export async function POST(req: Request) {
   }
 
   const { analysis, appId } = await req.json();
+  const appTitle = analysis.appTitle || appId;
 
   if (!analysis) {
     return NextResponse.json({ error: "Analysis data required" }, { status: 400 });
@@ -26,7 +27,7 @@ export async function POST(req: Request) {
   try {
     // Construct HTML content for the emailContent variable
     const emailContent = `
-      <h2>Weekly Pulse: ${appId}</h2>
+      <h2>Weekly Pulse: ${appTitle}</h2>
       
       <p><strong>Summary:</strong> ${data.summary}</p>
 

@@ -1,22 +1,79 @@
 "use client";
 
-import { signIn, signOut, useSession } from "next-auth/react";
-import { useState, useEffect, Suspense, useRef } from "react";
-import { useSearchParams } from "next/navigation";
-import { Search, Send, Star, History, LogOut, Loader2, X, TrendingUp, Users, Lightbulb, BarChart3, Sparkles } from "lucide-react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useState, Suspense, useEffect, useCallback } from "react";
+import { useSession, signIn, signOut } from "next-auth/react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+    Search,
+    LogOut,
+    Loader2,
+    BarChart3,
+    TrendingUp,
+    MessageSquare,
+    AlertCircle,
+    CheckCircle2,
+    Mail,
+    Send,
+    X,
+    History,
+    Clock,
+    ArrowRight,
+    Users,
+    Lightbulb,
+    Sparkles,
+    Star
+} from "lucide-react";
+import {
+    LineChart,
+    Line,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer,
+    BarChart,
+    Bar,
+    Legend,
+    Cell,
+    AreaChart,
+    Area
+} from "recharts";
 
-interface AnalysisData {
-    weekly_summary: string;
-    weekly_ratings: { date: string; positive: number; negative: number }[];
-    themes: { name: string; sentiment: { positive: number; negative: number } }[];
-    quotes: { text: string; rating: number; time: string; sentiment: "Positive" | "Negative"; tag: string }[];
+// --- Types ---
+interface DailyRating {
+    date: string;
+    positive: number;
+    negative: number;
+}
+
+interface Theme {
+    name: string;
+    sentiment: {
+        positive: number;
+        negative: number;
+    };
+}
+
+interface Quote {
+    text: string;
+    rating: number;
+    time: string;
+    sentiment: "Positive" | "Negative";
+    tag: string;
+}
+
+interface PeriodAnalysis {
+    summary: string;
+    daily_ratings: DailyRating[];
+    themes: Theme[];
+    quotes: Quote[];
     action_items: string[];
 }
 
 interface AnalysisResult {
-    last_7_days: AnalysisData;
-    last_15_days: AnalysisData;
+    last_7_days: PeriodAnalysis;
+    last_15_days: PeriodAnalysis;
+    appTitle?: string;
 }
 
 interface HistoryItem {
@@ -24,21 +81,29 @@ interface HistoryItem {
     timestamp: string;
 }
 
-function SearchHandler({ setAppId, handleAutoAnalyze }: { setAppId: (id: string) => void, handleAutoAnalyze: (id: string) => void }) {
+// --- Helper Components ---
+
+// 1. SearchHandler: Manages URL sync without aggressive resetting
+function SearchHandler({
+    setAppId,
+    handleAutoAnalyze
+}: {
+    setAppId: (val: string) => void;
+    handleAutoAnalyze: (id: string) => void;
+}) {
     const searchParams = useSearchParams();
-    const hasTriggered = useRef(false);
+    const appIdParam = searchParams.get("appId");
+    const [processedId, setProcessedId] = useState<string | null>(null);
 
     useEffect(() => {
-        const urlAppId = searchParams.get("appId");
-        if (urlAppId) {
-            setAppId(urlAppId);
-            // Only auto-trigger once per page load/mount
-            if (!hasTriggered.current) {
-                hasTriggered.current = true;
-                handleAutoAnalyze(urlAppId);
-            }
+        if (appIdParam && appIdParam !== processedId) {
+            // Only set input if it's empty to avoid overwriting user typing
+            // OR if it's a fresh load (processedId is null)
+            setAppId(appIdParam);
+            setProcessedId(appIdParam);
+            handleAutoAnalyze(appIdParam);
         }
-    }, [searchParams, setAppId, handleAutoAnalyze]);
+    }, [appIdParam, handleAutoAnalyze, processedId, setAppId]);
 
     return null;
 }
@@ -177,11 +242,11 @@ export default function HomeClient() {
     };
 
     // Wrapper for auto-analyze to be passed to SearchHandler
-    const handleAutoAnalyze = (id: string) => {
+    const handleAutoAnalyze = useCallback((id: string) => {
         if (session) {
             handleAnalyze(undefined, id);
         }
-    };
+    }, [session]);
 
     const triggerEmail = async (analysisData: AnalysisResult, currentAppId: string) => {
         setEmailSending(true);
@@ -273,7 +338,7 @@ export default function HomeClient() {
                     <form onSubmit={(e) => handleAnalyze(e)} className="flex gap-4">
                         <input
                             type="text"
-                            placeholder="Enter Google Play App ID (e.g., com.nextbillion.groww)"
+                            placeholder="Enter Google Play Store URL"
                             className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent transition-all"
                             value={appId}
                             onChange={(e) => setAppId(e.target.value)}
@@ -349,7 +414,7 @@ export default function HomeClient() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <h2 className="text-2xl font-bold text-gray-900">Analysis Report</h2>
-                                <p className="text-gray-500">Insights for {appId}</p>
+                                <p className="text-gray-500">Insights for {analysis.appTitle || appId}</p>
                             </div>
                             <div className="flex items-center gap-3">
                                 <div className="relative">
