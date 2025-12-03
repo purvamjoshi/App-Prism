@@ -273,7 +273,7 @@ export default function HomeClient() {
             const data = await res.json();
 
             if (!res.ok) {
-                throw new Error(data.error || "Analysis failed");
+                throw new Error(data.details || data.error || "Analysis failed");
             }
 
             setAnalysis(data);

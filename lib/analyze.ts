@@ -26,7 +26,7 @@ export async function analyzeApp(appId: string) {
         scraper.reviews({
             appId: appId,
             sort: sortOption,
-            num: 3000,
+            num: 500,
         }),
         scraper.app({ appId: appId }).catch(() => ({ title: appId })) // Fallback to ID if fetch fails
     ]);
