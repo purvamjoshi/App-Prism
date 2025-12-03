@@ -118,6 +118,8 @@ export default function HomeClient() {
     const [selectedPeriod, setSelectedPeriod] = useState<'last_7_days' | 'last_15_days'>('last_7_days');
     const [history, setHistory] = useState<HistoryItem[]>([]);
     const [emailSending, setEmailSending] = useState(false);
+    const [isWeeklyEmailEnabled, setIsWeeklyEmailEnabled] = useState(false);
+    const [updatingPreference, setUpdatingPreference] = useState(false);
     const [error, setError] = useState("");
 
     // Loading messages sequence
@@ -132,6 +134,7 @@ export default function HomeClient() {
     useEffect(() => {
         if (session?.user) {
             fetchHistory();
+            fetchEmailPreference();
         }
     }, [session]);
 
@@ -158,6 +161,38 @@ export default function HomeClient() {
             }
         } catch (err) {
             console.error("Failed to fetch history", err);
+        }
+    };
+
+    const fetchEmailPreference = async () => {
+        try {
+            const res = await fetch("/api/user/preferences");
+            if (res.ok) {
+                const data = await res.json();
+                setIsWeeklyEmailEnabled(data.isWeeklyEmailEnabled);
+            }
+        } catch (err) {
+            console.error("Failed to fetch email preference", err);
+        }
+    };
+
+    const toggleEmailPreference = async () => {
+        setUpdatingPreference(true);
+        try {
+            const newState = !isWeeklyEmailEnabled;
+            const res = await fetch("/api/user/preferences", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ isWeeklyEmailEnabled: newState }),
+            });
+
+            if (res.ok) {
+                setIsWeeklyEmailEnabled(newState);
+            }
+        } catch (err) {
+            console.error("Failed to update email preference", err);
+        } finally {
+            setUpdatingPreference(false);
         }
     };
 
@@ -440,6 +475,28 @@ export default function HomeClient() {
                                     Email Report
                                 </button>
                             </div>
+                        </div>
+
+                        {/* Weekly Email Toggle */}
+                        <div className="bg-gradient-to-r from-indigo-50 to-blue-50 p-4 rounded-xl border border-indigo-100 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-white rounded-lg shadow-sm">
+                                    <Clock className="w-5 h-5 text-indigo-600" />
+                                </div>
+                                <div>
+                                    <h4 className="font-semibold text-gray-900">Weekly Pulse</h4>
+                                    <p className="text-sm text-gray-600">Receive automatic weekly insights for this app</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={toggleEmailPreference}
+                                disabled={updatingPreference}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${isWeeklyEmailEnabled ? 'bg-indigo-600' : 'bg-gray-200'}`}
+                            >
+                                <span
+                                    className={`${isWeeklyEmailEnabled ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+                                />
+                            </button>
                         </div>
 
                         {/* Summary */}
