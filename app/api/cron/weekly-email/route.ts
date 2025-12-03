@@ -10,42 +10,38 @@ export async function GET(req: Request) {
     // }
 
     try {
-        // 1. Fetch all users with weekly email enabled
-        const users = await prisma.user.findMany({
-            where: { isWeeklyEmailEnabled: true },
+        // 1. Fetch all subscriptions
+        const subscriptions = await prisma.subscription.findMany({
             include: {
-                searchHistory: {
-                    orderBy: { timestamp: 'desc' },
-                    take: 1,
-                },
-            },
+                user: {
+                    select: { email: true }
+                }
+            }
         });
 
         const results = [];
 
-        // 2. Process each user
-        for (const user of users) {
-            if (!user.email || user.searchHistory.length === 0) {
+        // 2. Process each subscription
+        for (const sub of subscriptions) {
+            if (!sub.user.email) {
                 continue;
             }
 
-            const lastAppId = user.searchHistory[0].appId;
-
             try {
-                console.log(`Processing weekly email for ${user.email} (App: ${lastAppId})`);
+                console.log(`Processing weekly email for ${sub.user.email} (App: ${sub.appId})`);
 
                 // Analyze the app
-                const analysis = await analyzeApp(lastAppId);
-                const appTitle = analysis.appTitle || lastAppId;
+                const analysis = await analyzeApp(sub.appId);
+                const appTitle = analysis.appTitle || sub.appTitle || sub.appId;
 
                 // Send the email
-                await sendWeeklyReport(user.email, analysis, appTitle);
+                await sendWeeklyReport(sub.user.email, analysis, appTitle);
 
-                results.push({ email: user.email, status: 'sent', appId: lastAppId });
+                results.push({ email: sub.user.email, status: 'sent', appId: sub.appId });
 
             } catch (error: any) {
-                console.error(`Failed to process for ${user.email}:`, error);
-                results.push({ email: user.email, status: 'failed', error: error.message });
+                console.error(`Failed to process for ${sub.user.email} (App: ${sub.appId}):`, error);
+                results.push({ email: sub.user.email, status: 'failed', appId: sub.appId, error: error.message });
             }
         }
 

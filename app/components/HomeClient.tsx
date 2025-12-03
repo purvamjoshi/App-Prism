@@ -21,7 +21,8 @@ import {
     Users,
     Lightbulb,
     Sparkles,
-    Star
+    Star,
+    Bell
 } from "lucide-react";
 import {
     LineChart,
@@ -108,6 +109,8 @@ function SearchHandler({
     return null;
 }
 
+import SubscriptionsModal from "./SubscriptionsModal";
+
 export default function HomeClient() {
     const { data: session, status } = useSession();
     const [appId, setAppId] = useState("");
@@ -118,8 +121,9 @@ export default function HomeClient() {
     const [selectedPeriod, setSelectedPeriod] = useState<'last_7_days' | 'last_15_days'>('last_7_days');
     const [history, setHistory] = useState<HistoryItem[]>([]);
     const [emailSending, setEmailSending] = useState(false);
-    const [isWeeklyEmailEnabled, setIsWeeklyEmailEnabled] = useState(false);
+    const [isSubscribed, setIsSubscribed] = useState(false);
     const [updatingPreference, setUpdatingPreference] = useState(false);
+    const [showSubscriptionsModal, setShowSubscriptionsModal] = useState(false);
     const [error, setError] = useState("");
 
     // Loading messages sequence
@@ -134,9 +138,14 @@ export default function HomeClient() {
     useEffect(() => {
         if (session?.user) {
             fetchHistory();
-            fetchEmailPreference();
         }
     }, [session]);
+
+    useEffect(() => {
+        if (session?.user && appId) {
+            checkSubscriptionStatus();
+        }
+    }, [session, appId]);
 
     // Effect to cycle through loading messages
     useEffect(() => {
@@ -164,33 +173,38 @@ export default function HomeClient() {
         }
     };
 
-    const fetchEmailPreference = async () => {
+    const checkSubscriptionStatus = async () => {
         try {
-            const res = await fetch("/api/user/preferences");
+            const res = await fetch("/api/user/subscriptions");
             if (res.ok) {
-                const data = await res.json();
-                setIsWeeklyEmailEnabled(data.isWeeklyEmailEnabled);
+                const subs = await res.json();
+                const cleanId = extractAppId(appId);
+                const isSub = subs.some((s: any) => s.appId === cleanId);
+                setIsSubscribed(isSub);
             }
         } catch (err) {
-            console.error("Failed to fetch email preference", err);
+            console.error("Failed to check subscription status", err);
         }
     };
 
-    const toggleEmailPreference = async () => {
+    const toggleSubscription = async () => {
         setUpdatingPreference(true);
+        const cleanId = extractAppId(appId);
+        const action = isSubscribed ? "unsubscribe" : "subscribe";
+        const appTitle = analysis?.appTitle || cleanId;
+
         try {
-            const newState = !isWeeklyEmailEnabled;
-            const res = await fetch("/api/user/preferences", {
+            const res = await fetch("/api/user/subscriptions", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ isWeeklyEmailEnabled: newState }),
+                body: JSON.stringify({ action, appId: cleanId, appTitle }),
             });
 
             if (res.ok) {
-                setIsWeeklyEmailEnabled(newState);
+                setIsSubscribed(!isSubscribed);
             }
         } catch (err) {
-            console.error("Failed to update email preference", err);
+            console.error("Failed to update subscription", err);
         } finally {
             setUpdatingPreference(false);
         }
@@ -354,6 +368,13 @@ export default function HomeClient() {
                                 >
                                     <LogOut className="w-5 h-5" />
                                 </button>
+                                <button
+                                    onClick={() => setShowSubscriptionsModal(true)}
+                                    className="p-2 text-gray-400 hover:text-[var(--color-brand)] rounded-full hover:bg-gray-100"
+                                    title="My Subscriptions"
+                                >
+                                    <Bell className="w-5 h-5" />
+                                </button>
                             </>
                         ) : (
                             <button
@@ -489,12 +510,12 @@ export default function HomeClient() {
                                 </div>
                             </div>
                             <button
-                                onClick={toggleEmailPreference}
+                                onClick={toggleSubscription}
                                 disabled={updatingPreference}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${isWeeklyEmailEnabled ? 'bg-indigo-600' : 'bg-gray-200'}`}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${isSubscribed ? 'bg-indigo-600' : 'bg-gray-200'}`}
                             >
                                 <span
-                                    className={`${isWeeklyEmailEnabled ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+                                    className={`${isSubscribed ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
                                 />
                             </button>
                         </div>
@@ -676,6 +697,11 @@ export default function HomeClient() {
                     </div>
                 </div>
             )}
+            {/* Subscriptions Modal */}
+            <SubscriptionsModal
+                isOpen={showSubscriptionsModal}
+                onClose={() => setShowSubscriptionsModal(false)}
+            />
         </div>
     );
 }
