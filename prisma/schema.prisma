@@ -65,6 +65,7 @@ model SearchHistory {
   appId     String
   userId    String
   timestamp DateTime @default(now())
+  result    Json?
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
