@@ -7,10 +7,11 @@
 ## ✨ Features
 
 -   **🔍 App Analysis**: Enter any Google Play App ID (e.g., `com.nextbillion.groww`) to fetch and analyze reviews.
--   **🤖 AI-Powered Insights**: Uses **Google Gemini 2.0 Flash** to generate a "Weekly Pulse" report, identifying:
+-   **🤖 AI-Powered Insights**: Uses **Google Gemini 1.5 Flash** to generate a "Weekly Pulse" report, identifying:
     -   Top 5 Themes (with sentiment breakdown).
     -   Key User Quotes.
     -   Actionable Next Steps.
+-   **🔔 Weekly Subscriptions**: Subscribe to specific apps to receive automatic weekly analysis emails via Cron Jobs.
 -   **📊 Visual Data**: Interactive charts showing daily rating trends and sentiment distribution.
 -   **🔐 Secure Authentication**: Google Login integration via **NextAuth.js**.
 -   **💾 History**: Persists search history and analysis results using **Supabase** (PostgreSQL).
@@ -21,7 +22,7 @@
 -   **Framework**: [Next.js 15](https://nextjs.org/) (App Router)
 -   **Styling**: [Tailwind CSS](https://tailwindcss.com/)
 -   **Database**: [Supabase](https://supabase.com/) (PostgreSQL) & [Prisma ORM](https://www.prisma.io/)
--   **AI Model**: [Google Gemini API](https://ai.google.dev/) (`gemini-2.0-flash-lite-preview-02-05`)
+-   **AI Model**: [Google Gemini API](https://ai.google.dev/) (`gemini-1.5-flash`)
 -   **Auth**: [Auth.js](https://authjs.dev/) (Google Provider)
 -   **Scraper**: `google-play-scraper`
 
