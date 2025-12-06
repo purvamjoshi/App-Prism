@@ -26,7 +26,7 @@ export async function analyzeApp(appId: string) {
         scraper.reviews({
             appId: appId,
             sort: sortOption,
-            num: 3000,
+            num: 500, // Reduced from 3000 as requested
         }),
         scraper.app({ appId: appId }).catch(() => ({ title: appId })) // Fallback to ID if fetch fails
     ]);
@@ -91,10 +91,10 @@ export async function analyzeApp(appId: string) {
       Analyze the reviews for the app "${appTitle}". I have provided two datasets: "Last 7 Days" and "Last 15 Days".
 
       Reviews (Last 7 Days):
-      ${formatReviews(last7DaysReviews.slice(0, 75))}
+      ${formatReviews(last7DaysReviews)}
 
       Reviews (Last 15 Days):
-      ${formatReviews(last15DaysReviews.slice(0, 150))}
+      ${formatReviews(last15DaysReviews)}
 
       Task:
       For EACH period ("last_7_days" and "last_15_days"), provide the following analysis:
