@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { analyzeApp } from "@/lib/analyze";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
@@ -15,7 +16,7 @@ export async function POST(req: Request) {
       where: {
         appId: appId,
         timestamp: { gt: twentyFourHoursAgo },
-        result: { not: null } // Ensure result exists
+        result: { not: Prisma.DbNull } // Ensure result exists
       },
       orderBy: { timestamp: "desc" },
     });
