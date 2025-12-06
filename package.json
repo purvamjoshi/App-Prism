@@ -16,7 +16,7 @@
     "google-play-scraper": "^10.1.2",
     "loops": "^6.0.1",
     "lucide-react": "^0.554.0",
-    "next": "16.0.4",
+    "next": "16.0.7",
     "next-auth": "^5.0.0-beta.30",
     "prisma": "^5.22.0",
     "react": "19.2.0",
