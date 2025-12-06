@@ -91,10 +91,10 @@ export async function analyzeApp(appId: string) {
       Analyze the reviews for the app "${appTitle}". I have provided two datasets: "Last 7 Days" and "Last 15 Days".
 
       Reviews (Last 7 Days):
-      ${formatReviews(last7DaysReviews)}
+      ${formatReviews(last7DaysReviews.slice(0, 75))}
 
       Reviews (Last 15 Days):
-      ${formatReviews(last15DaysReviews)}
+      ${formatReviews(last15DaysReviews.slice(0, 150))}
 
       Task:
       For EACH period ("last_7_days" and "last_15_days"), provide the following analysis:
@@ -117,8 +117,30 @@ export async function analyzeApp(appId: string) {
       }
     `;
 
-    // 3. Call Gemini
-    const result = await model.generateContent(prompt);
+    // 3. Call Gemini with Retries
+    let result;
+    let attempt = 0;
+    const maxRetries = 3;
+
+    while (attempt < maxRetries) {
+        try {
+            result = await model.generateContent(prompt);
+            break;
+        } catch (error: any) {
+            console.error(`Gemini Attempt ${attempt + 1} failed:`, error.message);
+            if (error.status === 429 || error.message.includes("429")) {
+                attempt++;
+                if (attempt >= maxRetries) throw error;
+                const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
+                console.log(`Retrying in ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            } else {
+                throw error;
+            }
+        }
+    }
+
+    if (!result) throw new Error("Failed to generate content after retries");
     const response = await result.response;
     const text = response.text();
 
